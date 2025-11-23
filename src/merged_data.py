@@ -49,8 +49,8 @@ def build_crisis_panel(path: Path) -> pd.DataFrame:
         crisis[c] = pd.to_numeric(crisis[c], errors="coerce")
         crisis[c] = crisis[c].fillna(0).astype(int)
 
-
-    crisis["any_crisis"] = (crisis[crisis_cols] > 0).any(axis=1).astype(int)
+    sovereign_cols = ["external_default_1", "external_default_2", "domestic_default"]
+    crisis["sovereign_crisis"] = (crisis[sovereign_cols] > 0).any(axis=1).astype(int)
 
     return crisis
 
