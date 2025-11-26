@@ -18,6 +18,22 @@ def load_raw_crisis(path: Path) -> pd.DataFrame:
     """
     return pd.read_excel(path)
 
+def load_raw_weo(path: Path) -> pd.DataFrame:
+    """
+    Load the raw WEO Excel file.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the Excel file.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Raw WEO data.
+    """
+
+    return pd.read_excel(path, sheet_name="WEOData")
 
 def main() -> None:
     """Test loader: print basic info about the crisis file."""
