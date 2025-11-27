@@ -27,7 +27,7 @@ def load_raw_weo(path: Path) -> pd.DataFrame:
 
 def build_weo_panel(raw: pd.DataFrame) -> pd.DataFrame:
     # Split country / indicator
-    parts = raw["SERIES_CODE"].str.split(".", n=2, expand=True)
+    parts = raw["SERIES_CODE"].str.split(".", n=2, expand=True, regex=False)
     raw["country_code"] = parts[0]
     raw["indicator"] = parts[1]
     raw["freq"] = parts[2]
@@ -68,23 +68,5 @@ def build_weo_panel(raw: pd.DataFrame) -> pd.DataFrame:
         values="value"
     ).reset_index()
 
-    panel.columns.name = None
+    panel.columns.name = None  # remove the pivot table column grouping name
     return panel
-
-
-
-def main() -> None:
-    """Test loader: print basic info about the crisis file."""
-    excel_path = Path("data/raw/global_crisis_data.xlsx")
-
-    df = load_raw_crisis(excel_path)
-
-    print("\nNumber of rows:", len(df))
-    print("\nFirst 20 column names:")
-    print(df.columns.tolist()[:20])
-    print("\nFirst 5 rows:")
-    print(df.head())
-
-
-if __name__ == "__main__":
-    main()

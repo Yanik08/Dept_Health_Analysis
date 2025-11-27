@@ -1,7 +1,6 @@
 from pathlib import Path
 import pandas as pd
 
-
 def build_crisis_panel(path: Path) -> pd.DataFrame:
     
     crisis = pd.read_excel(path)
@@ -53,32 +52,3 @@ def build_crisis_panel(path: Path) -> pd.DataFrame:
     crisis["sovereign_crisis"] = (crisis[sovereign_cols] > 0).any(axis=1).astype(int)
 
     return crisis
-
-
-def main() -> None:
-    base_dir = Path(__file__).resolve().parents[1]
-
-    weo_path = base_dir / "data" / "processed" / "weo_panel.csv"
-    weo = pd.read_csv(weo_path)
-
-    crisis_path = base_dir / "data" / "raw" / "global_crisis_data.xlsx"
-    crisis = build_crisis_panel(crisis_path)
-
-    merged = pd.merge(
-        weo,
-        crisis,
-        on=["country_code", "year"],
-        how="inner"
-    )
-
-    print("Rows kept after inner merge:", merged.shape)
-
-    out = base_dir / "data" / "processed" / "merged_weo_crisis.csv"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_csv(out, index=False)
-
-    print("Saved:", out)
-
-if __name__ == "__main__":
-    main()
-

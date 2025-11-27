@@ -1,0 +1,14 @@
+name: dept-crisis-ml
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - scikit-learn
+  - matplotlib
+  - openpyxl
+  - pip
+  - pip:
+      - xgboost
