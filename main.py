@@ -86,6 +86,6 @@ def main() -> None:
     print(f"    Saved XGB model to: {xgb_model_path}")
     
     
-    print("        \U0001F60E main.py finished successfully \U0001F918\U0001F9A7")
+    print("\n\n        \U0001F60E main.py finished successfully \U0001F918\U0001F9A7 \n\n")
 if __name__ == "__main__":
     main()

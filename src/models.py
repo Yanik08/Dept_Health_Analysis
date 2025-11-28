@@ -16,8 +16,12 @@ def load_model_dataset(path:Path) -> pd.DataFrame:
 # select columns used as input from dataframe by excluding certain columns:
 def get_feature_columns(df: pd.DataFrame, target: str) -> List[str]: 
     """Get feature columns by excluding the target and identifier columns."""  
-    exclude_cols = [target, "country_code", "year"] # columns to exclude from features
-    return [col for col in df.columns if col not in exclude_cols] # returns list of column names excluding target and id columns
+    crisis_helper_cols = ["external_default_1", "external_default_2", "domestic_default", "currency_crisis", "inflation_crisis"]
+    exclude_cols = [target, "country_code", "year"] + crisis_helper_cols
+    return [col for col in df.columns if col not in exclude_cols]
+# these columns are excluded because they are either the target variable or identifiers, or they are helper columns used to construct the target variable.
+# The remaining columns are considered features for model training.
+
 
 ##### Train logistic regression model
 def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis") -> Tuple[LogisticRegression, pd.DataFrame, pd.Series]:
@@ -55,9 +59,7 @@ def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis"
     return model, X_test, y_test
 
 ##### Train random forest model #####
-def train_random_forest(
-    df: pd.DataFrame,
-    target: str = "sovereign_crisis",) -> Tuple[RandomForestClassifier, pd.DataFrame, pd.Series]:
+def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis",) -> Tuple[RandomForestClassifier, pd.DataFrame, pd.Series]:
     """Train a Random Forest classifier."""
 
     # same feature engineering / cleaning as in train_logistic_regression
@@ -95,9 +97,7 @@ def train_random_forest(
     return model, X_test, y_test
 
 ##### Train XGBoost model #####
-def train_xgboost(
-    df: pd.DataFrame,
-    target: str = "sovereign_crisis",) -> Tuple[XGBClassifier, pd.DataFrame, pd.Series]:
+def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis",) -> Tuple[XGBClassifier, pd.DataFrame, pd.Series]:
     """Train an XGBoost classifier."""
 
     # same feature engineering / cleaning as in the other models
