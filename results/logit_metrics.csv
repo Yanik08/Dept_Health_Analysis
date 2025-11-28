@@ -1,0 +1,5 @@
+metric,value
+accuracy,0.9888475836431226
+roc_auc,0.995983935742972
+confusion_matrix,"[[248   1]
+ [  2  18]]"
