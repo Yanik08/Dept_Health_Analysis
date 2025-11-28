@@ -1,8 +1,8 @@
 from pathlib import Path
 import joblib
 from src.data_loader import build_and_save_panels
-from src.models import load_model_dataset, train_logistic_regression, train_random_forest
-from src.evaluation import evaluate_logit, evaluate_rf
+from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost
+from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb
 
 
 def main() -> None:
@@ -56,10 +56,36 @@ def main() -> None:
     print("    RF Confusion Matrix:")
     print(rf_cm)
 
+    # --------------------- 8. Save Random Forest model --------------------------
     rf_model_path = results_dir / "rf_model.joblib"
     joblib.dump(rf_model, rf_model_path)
     print(f"    Saved RF model to: {rf_model_path}")
 
-    print("\n :) main.py finished successfully :)")
+
+                        #### XGBoost Model #####
+    # --------------------- 9. Train XGBoost -------------------------------
+    print("\n[8] Training XGBoost model...")
+    xgb_model, X_test_xgb, y_test_xgb = train_xgboost(df)
+    print("    XGBoost model trained.")
+
+    # --------------------- 10. Evaluate & save XGBoost results ---------------------
+    print("\n[9] Evaluating XGBoost model...")
+    xgb_accuracy, xgb_roc_auc, xgb_cm = evaluate_xgb(
+        xgb_model,
+        X_test_xgb,
+        y_test_xgb,
+        results_dir)
+    print(f"    XGB Test accuracy: {xgb_accuracy:.3f}")
+    print(f"    XGB Test ROC AUC: {xgb_roc_auc:.3f}")
+    print("   XGB Confusion Matrix:")
+    print(xgb_cm)
+
+    # --------------------- 11. Save XGBoost model --------------------------
+    xgb_model_path = results_dir / "xgb_model.joblib"
+    joblib.dump(xgb_model, xgb_model_path)
+    print(f"    Saved XGB model to: {xgb_model_path}")
+    
+    
+    print("        \U0001F60E main.py finished successfully \U0001F918\U0001F9A7")
 if __name__ == "__main__":
     main()

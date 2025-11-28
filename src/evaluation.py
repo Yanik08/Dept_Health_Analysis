@@ -131,3 +131,67 @@ def evaluate_rf(model, X_test, y_test, results_dir: Path | None = None):
     plt.show()
 
     return accuracy, roc_auc, cm
+
+##### Evaluate XGBoost model ##### Again, similar to above
+
+def evaluate_xgb(model, X_test, y_test, results_dir: Path | None = None):
+    """
+    Evaluate the XGBoost model and optionally save results.
+    """
+    # Predictions
+    y_pred = model.predict(X_test)
+    # XGBoost returns probabilities via predict_proba too
+    y_proba = model.predict_proba(X_test)[:, 1]
+
+    # Metrics
+    accuracy = accuracy_score(y_test, y_pred)
+    roc_auc = roc_auc_score(y_test, y_proba)
+    cm = confusion_matrix(y_test, y_pred)
+
+    print(f"Accuracy (XGB): {accuracy:.3f}")
+    print(f"ROC AUC (XGB): {roc_auc:.3f}")
+    print("Confusion Matrix (XGB):")
+    print(cm)
+
+    # Plot ROC Curve
+    RocCurveDisplay.from_estimator(model, X_test, y_test)
+    plt.title("ROC Curve (XGBoost)")
+
+    if results_dir is not None:
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save ROC curve figure
+        roc_path = results_dir / "xgb_roc_curve.png"
+        plt.savefig(roc_path, bbox_inches="tight")
+        print(f"Saved XGB ROC curve to: {roc_path}")
+
+        # Save confusion matrix as plot
+        plt.figure(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+        plt.title("Confusion Matrix (XGBoost)")
+        plt.tight_layout()
+        plt.savefig(results_dir / "xgb_confusion_matrix.png", bbox_inches="tight")
+        print(f"Saved XGB confusion matrix to: {results_dir / 'xgb_confusion_matrix.png'}")
+
+        # Save metrics
+        metrics_df = pd.DataFrame(
+            {
+                "metric": ["accuracy", "roc_auc"],
+                "value": [accuracy, roc_auc],
+            }
+        )
+        metrics_path = results_dir / "xgb_metrics.csv"
+        metrics_df.to_csv(metrics_path, index=False)
+        print(f"Saved XGB metrics to: {metrics_path}")
+
+        # Save predictions
+        preds_df = pd.DataFrame(
+            {"y_true": y_test, "y_pred": y_pred, "y_proba": y_proba}
+        )
+        preds_path = results_dir / "xgb_predictions.csv"
+        preds_df.to_csv(preds_path, index=False)
+        print(f"Saved XGB predictions to: {preds_path}")
+
+    plt.show()
+
+    return accuracy, roc_auc, cm
