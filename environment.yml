@@ -10,5 +10,7 @@ dependencies:
   - matplotlib
   - openpyxl
   - pip
+  - joblib
+  - seaborn
   - pip:
       - xgboost
