@@ -1,10 +1,9 @@
 from pathlib import Path
+import pandas as pd
 import joblib
 from src.data_loader import build_and_save_panels
-from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost, get_feature_columns
+from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost
 from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb
-import pandas as pd
-
 
 Variable_Labels: dict[str, str] = {
     "BCA_NGDPD": "Current account balance (% of GDP)",
@@ -35,8 +34,8 @@ def main() -> None:
                         
                         #### Logistic Regression Model #####
     # --------------------- 3. Train logistic regression ---------------------
-    print("\n[3] Training Logistic Regression model...")
-    model, X_test, y_test = train_logistic_regression(df)
+    print("\n[3] Training Logistic Regression model for 1-year ahead crisis...")
+    model, X_test, y_test = train_logistic_regression(df, target="crisis_h1")
     print("    Model trained.")
 
     # --------------------- 4. Evaluate & save results ---------------------
@@ -58,11 +57,11 @@ def main() -> None:
                         #### Random Forest Model #####
     # --------------------- 6. Train Random Forest -------------------------------
     print("\n[6] Training Random Forest model...")
-    rf_model, X_test_rf, y_test_rf = train_random_forest(df)
+    rf_model, rf_X_test, rf_y_test = train_random_forest(df, target="crisis_h1")
     print("    Random Forest model trained.")
 
     # --------------------- 7. Evaluate & save RF results ------------------------
-    rf_accuracy, rf_roc_auc, rf_cm = evaluate_rf(rf_model, X_test_rf, y_test_rf, results_dir)
+    rf_accuracy, rf_roc_auc, rf_cm = evaluate_rf(rf_model, rf_X_test, rf_y_test, results_dir)
     print(f"    RF Test accuracy: {rf_accuracy:.3f}")
     print(f"    RF Test ROC AUC: {rf_roc_auc:.3f}")
     print("    RF Confusion Matrix:")
@@ -73,19 +72,26 @@ def main() -> None:
     joblib.dump(rf_model, rf_model_path)
     print(f"    Saved RF model to: {rf_model_path}")
 
+    print ("\n[6] Random Forrest early-warning models for horizons 1 to 7...")
+    rf_h_models = {}
 
-                        #### XGBoost Model #####
+    for h in range (1, 8): # Horizons 1 to 7
+        print (f"    Training Random Forest for horizon {h}...")
+        model_h, _, _ = train_random_forest (df, target=f"crisis_h{h}")
+        rf_h_models[h] = model_h
+
+                      #### XGBoost Model #####
     # --------------------- 9. Train XGBoost -------------------------------
     print("\n[8] Training XGBoost model...")
-    xgb_model, X_test_xgb, y_test_xgb = train_xgboost(df)
+    xgb_model, xgb_X_test, xgb_y_test = train_xgboost(df, target="crisis_h1")
     print("    XGBoost model trained.")
 
     # --------------------- 10. Evaluate & save XGBoost results ---------------------
     print("\n[9] Evaluating XGBoost model...")
     xgb_accuracy, xgb_roc_auc, xgb_cm = evaluate_xgb(
         xgb_model,
-        X_test_xgb,
-        y_test_xgb,
+        xgb_X_test,
+        xgb_y_test,
         results_dir)
     print(f"    XGB Test accuracy: {xgb_accuracy:.3f}")
     print(f"    XGB Test ROC AUC: {xgb_roc_auc:.3f}")
@@ -97,21 +103,31 @@ def main() -> None:
     joblib.dump(xgb_model, xgb_model_path)
     print(f"    Saved XGB model to: {xgb_model_path}")
     
+    # ----------------------12. Train XGB for horizons 1-7---------------- 
+
+    print("\n[10] Training XGBoost models for horizons 1 to 7...")
+    
+    xgb_h_model: dict[int, object] = {1: xgb_model} # Store models for horizons 1-7, starting with h=1 model already trained
+
+    for h in range(2, 8): # Horizons 2 to 7
+        print(f"    Training XGBoost for horizon {h}...")
+        m_h, _, _ = train_xgboost(df, target=f"crisis_h{h}")
+        xgb_h_model[h] = m_h
+
+    print("    All XGBoost models trained.")
+
                             #### Predicton model #####
     # ------------------- 12. Custom scenario prediction ---------------------
-    #
+
     answer = input(
         "\n  Would you like to predict dept situation based on macrovariables?\n    -(Yes/n): "
     ).strip().lower()
 
-    if answer in ["Yes" , "yes" , "YES"]:
-        target = "sovereign_crisis"
-        feature_cols = get_feature_columns(df, target)
+    if answer in ["Yes" , "yes" , "YES", "Yeah", "yeah", "Y", "y"]:
+        feature_cols = list(Variable_Labels.keys())  # Use all macroeconomic variables as features
 
         print("\nEnter the values for the following macroeconomic variables:")
-        print("(Use numeric values, e.g. 123.45)\n")
-
-        user_data: dict[str, float] = {} # To store user inputs
+        user_data: dict = {} # To store user inputs
 
         for col in feature_cols: 
             # To make it user-friendly, get variable label if available
@@ -132,37 +148,38 @@ def main() -> None:
 
         print("\n  Predictions for your custom scenario:\n")
 
-        # Logistic Regression
-        logit_proba = model.predict_proba(X_new)[0, 1] # Probability of crisis
-        logit_pred = int(logit_proba >= 0.5) # crisis threshold at 0.5
-
-        # Random Forest
-        rf_proba = rf_model.predict_proba(X_new)[0, 1] # Probability of crisis
-        rf_pred = int(rf_proba >= 0.5) # crisis threshold at 0.5
-
-        # XGBoost
-        try:
-            xgb_proba = xgb_model.predict_proba(X_new)[0, 1]
-            xgb_pred = int(xgb_proba >= 0.5)
-            has_xgb = True # Flag to indicate XGB model is available
-        except NameError:
-            has_xgb = False # XGB model not available
         print("------------------------------------------------------------")
         print("------------------------------------------------------------")
-        print(f" Logistic Regression →  p = {logit_proba:.3f}   crisis = {logit_pred}") 
-        print(f" Random Forest       →  p = {rf_proba:.3f}   crisis = {rf_pred}") 
-        if has_xgb:
-            print(f" XGBoost             →  p = {xgb_proba:.3f}   crisis = {xgb_pred}")
-        else:
-            print(" XGBoost             →  (model not available in this run)") 
+        print("\n Seven-year horizon crisis probabilities and predictions:\n")
+        
+        crisis_flags = []
+        probs = {}
+
+        for h in range(1, 8):
+            model_h = xgb_h_model[h] # Get the model for horizon h
+            p = float(model_h.predict_proba(X_new)[0, 1]) # Probability of crisis
+            crisis = int(p >= 0.5) # Binary crisis prediction based on 0.5 threshold
+            probs[h] = p # Store probability
+            crisis_flags.append(crisis) # To check if any crisis is predicted
+            print(f" Year +{h}: p = {p:.3f} --> crisis = {crisis}") # Display results
+
+
         print("------------------------------------------------------------\n")
         print("------------------------------------------------------------")
 
         print(" Interpretation:") 
-        print("  - 'p' is the predicted probability of a sovereign crisis.")
-        print("  - 'crisis' = 1 means the model predicts a crisis (p ≥ 0.5).")
-        print("  - 'crisis' = 0 means the model predicts no crisis.\n")
-    
+        
+        if any(crisis_flags):
+            print("\n \u26A0\uFE0F COUNTRY AT RISK: Crisis likely within 7 years.\n")
+            print("\n -> Policy Advice: Strengthen fiscal and monetary policies, build reserves, seek IMF support early. \n")
+        elif any(p > 0.30 for p in probs.values()):
+            print("\n \U0001F6A8 ELEVATED RISK: Monitor closely, crisis possible within 7 years.\n")
+            print("\n -> Policy Advice: Enhance surveillance, consider preemptive measures to bolster economic stability. \n")
+        else:
+            print("\n \U00002705 LOW RISK: No crisis signals based on macrovariables.\n")
+            print("\n -> Policy Advice: Maintain prudent fiscal and monetary policies, continue monitoring economic indicators. \n")
+
+        print("\n ------------------------------------------------------------\n")
     print("\n\n        \U0001F60E main.py finished successfully \U0001F918\U0001F9A7 \n\n")
 
 if __name__ == "__main__":

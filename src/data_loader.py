@@ -1,7 +1,26 @@
 from pathlib import Path
 from typing import Tuple
 import pandas as pd
+def impute_country_means(df: pd.DataFrame, feature_cols: list[str]) -> pd.DataFrame:
+    """
+    If a country has at least 1 non-missing value for a variable,
+    missing values are filled with its country mean.
+    If a country has all values missing for that variable,
+    the values remain NaN (and those rows may later drop out in training).
+    """
+    df_filled = df.copy()
 
+    for col in feature_cols:
+        if col not in df_filled.columns:
+            continue  # skip if column not present
+
+        # Country-specific means for this variable
+        country_means = df_filled.groupby("country_code")[col].transform("mean")
+
+        # Fill NaNs with the country mean
+        df_filled[col] = df_filled[col].fillna(country_means)
+
+    return df_filled
 
 #### Raw data loading functions:
 
@@ -158,8 +177,40 @@ def build_and_save_panels(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
         weo_panel,
         crisis_panel,
         on=["country_code", "year"],
-        how="inner",
-    )
+        how="inner")
+    print(f"Merged panel shape before imputation: {merged.shape}")
+
+    #4# Take care of missing values in macrovariables with country mean imputation:
+    macro_vars = [
+        "GGXWDG_NGDP",
+        "GGXONLB_NGDP",
+        "NGDP_RPCH",
+        "PCPIPCH",
+        "LUR",
+        "NGDPD",
+        "LP",
+        "BCA_NGDPD",
+    ]
+    print( "\n Imputing missing macroeconomic values with country means...")
+    merged = impute_country_means(merged, macro_vars)
+    print(" Imputation done.")
+    # A lot of missinf values for unemployment rate remain, so as a last resort I fill those with global mean:
+    merged[macro_vars] = merged[macro_vars].fillna(merged[macro_vars].mean())
+    print("Global-mean fallback imputation completed.")
+
+    #5# Create future crisis indicators (1 to 7 years ahead)
+    merged = merged.sort_values(["country_code", "year"])
+
+    for h in range(1, 8):  # horizons 1 to 7 years ahead
+        col_name = f"crisis_h{h}"
+        merged[col_name] = (
+            merged.groupby("country_code")["sovereign_crisis"].shift(-h)
+        )
+
+    # quick check:
+    print(merged[["country_code", "year", "sovereign_crisis", "crisis_h1", "crisis_h3", "crisis_h7"]].head(20))
+
+
     merged_out = processed_dir / "merged_weo_crisis.csv"
     merged.to_csv(merged_out, index=False)
     print(f"Saved merged panel to: {merged_out}")

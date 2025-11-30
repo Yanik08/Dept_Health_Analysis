@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from xgboost import XGBClassifier
 
 SEED: int = 42
@@ -17,8 +18,16 @@ def load_model_dataset(path:Path) -> pd.DataFrame:
 def get_feature_columns(df: pd.DataFrame, target: str) -> List[str]: 
     """Get feature columns by excluding the target and identifier columns."""  
     crisis_helper_cols = ["external_default_1", "external_default_2", "domestic_default", "currency_crisis", "inflation_crisis"]
-    exclude_cols = [target, "country_code", "year"] + crisis_helper_cols
-    return [col for col in df.columns if col not in exclude_cols]
+    exclude_cols = {target, "sovereign_crisis", "country_code", "year", *crisis_helper_cols}
+    feature_cols: list[str] = []
+    for col in df.columns:
+        if col in exclude_cols:
+            continue
+        if col.startswith("crisis_h"):
+            continue
+        feature_cols.append(col)
+
+    return feature_cols
 # these columns are excluded because they are either the target variable or identifiers, or they are helper columns used to construct the target variable.
 # The remaining columns are considered features for model training.
 
@@ -34,19 +43,27 @@ def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis"
     # I had problems with non-numeric data in features, so I convert all to numeric
     X = X.apply(pd.to_numeric, errors="coerce")
 
+    X = X.dropna(axis=1, how="all")  # drop columns that are all NaN
+    feature_cols = list(X.columns)  # update feature_cols to reflect any dropped columns
+    
     # First, I need to drop rows where the target is NaN
     mask = y.notna()
     X = X[mask]         # keep only rows in X where y is not NaN
     y = y[mask]         # keep only non missing values in y
 
-    # Now, I drop rows with any NaN in features
-    X = X.dropna()   
-    y = y.loc[X.index]  # align y with the cleaned X
+    # Then, I need to handle missing values in features
+    # Here, I choose to impute missing values using the mean of each feature (documented in report)
+    imputer = SimpleImputer(strategy="mean")
+    X_imputed = pd.DataFrame(
+        imputer.fit_transform(X),
+        columns=feature_cols,
+        index=X.index,
+    )
 
 
     # Train/test split
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=SEED, stratify=y
+        X_imputed, y, test_size=0.2, random_state=SEED, stratify=y
     )
     # 20% of data go into test set, 80% into training set
     # SEED for reproducibility, ensuring consistent splits across runs
@@ -75,12 +92,16 @@ def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis",) -> 
     X = X[mask] # keep only rows in X where y is not NaN
     y = y[mask] # keep only non-missing values in y
 
-    # Drop rows with any NaN in features
-    X = X.dropna()  # drop rows with missing feature values
-    y = y.loc[X.index] # align y with cleaned X
+    imputer = SimpleImputer(strategy="mean") # imputer to fill missing values with feature means
+    X_imputed = pd.DataFrame(
+        imputer.fit_transform(X),
+        columns=feature_cols,
+        index=X.index,
+    )
+
 
     # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split( X, y, test_size=0.2, random_state=SEED, stratify=y) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
+    X_train, X_test, y_train, y_test = train_test_split( X_imputed, y, test_size=0.2, random_state=SEED, stratify=y) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
 
     ### The model training
     model = RandomForestClassifier(
@@ -113,12 +134,16 @@ def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis",) -> Tuple[
     X = X[mask] # keep only rows in X where y is not NaN
     y = y[mask] # keep only non-missing values in y
 
-    # Drop rows with any NaN in features
-    X = X.dropna()  # drop rows with missing feature values
-    y = y.loc[X.index] # align y with cleaned X
+
+    imputer = SimpleImputer(strategy="mean") # imputer to fill missing values with feature means
+    X_imputed = pd.DataFrame(
+        imputer.fit_transform(X),
+        columns=feature_cols,
+        index=X.index,
+    )
 
     # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split( X, y, test_size=0.2, random_state=SEED, stratify=y) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
+    X_train, X_test, y_train, y_test = train_test_split( X_imputed, y, test_size=0.2, random_state=SEED, stratify=y) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
 
     ### The model training
     model = XGBClassifier(
