@@ -75,7 +75,7 @@ def main() -> None:
     print ("\n[6] Random Forrest early-warning models for horizons 1 to 7...")
     rf_h_models = {}
 
-    for h in range (1, 8): # Horizons 1 to 7
+    for h in range (1, 11): # Horizons 1 to 10
         print (f"    Training Random Forest for horizon {h}...")
         model_h, _, _ = train_random_forest (df, target=f"crisis_h{h}")
         rf_h_models[h] = model_h
@@ -103,13 +103,13 @@ def main() -> None:
     joblib.dump(xgb_model, xgb_model_path)
     print(f"    Saved XGB model to: {xgb_model_path}")
     
-    # ----------------------12. Train XGB for horizons 1-7---------------- 
+    # ----------------------12. Train XGB for horizons 1-10---------------- 
 
-    print("\n[10] Training XGBoost models for horizons 1 to 7...")
+    print("\n[10] Training XGBoost models for horizons 1 to 10...")
     
     xgb_h_model: dict[int, object] = {1: xgb_model} # Store models for horizons 1-7, starting with h=1 model already trained
 
-    for h in range(2, 8): # Horizons 2 to 7
+    for h in range(2, 11): # Horizons 2 to 10
         print(f"    Training XGBoost for horizon {h}...")
         m_h, _, _ = train_xgboost(df, target=f"crisis_h{h}")
         xgb_h_model[h] = m_h
@@ -120,7 +120,7 @@ def main() -> None:
     # ------------------- 12. Custom scenario prediction ---------------------
 
     answer = input(
-        "\n  Would you like to predict dept situation based on macrovariables?\n    -(Yes/n): "
+        "\n  Would you like to predict dept situation based on macrovariables?\n    -(Yes/no): "
     ).strip().lower()
 
     if answer in ["Yes" , "yes" , "YES", "Yeah", "yeah", "Y", "y"]:
@@ -150,12 +150,12 @@ def main() -> None:
 
         print("------------------------------------------------------------")
         print("------------------------------------------------------------")
-        print("\n Seven-year horizon crisis probabilities and predictions:\n")
+        print("\n Ten year horizon crisis probabilities and predictions:\n")
         
         crisis_flags = []
         probs = {}
 
-        for h in range(1, 8):
+        for h in range(1, 11):
             model_h = xgb_h_model[h] # Get the model for horizon h
             p = float(model_h.predict_proba(X_new)[0, 1]) # Probability of crisis
             crisis = int(p >= 0.5) # Binary crisis prediction based on 0.5 threshold
@@ -170,10 +170,10 @@ def main() -> None:
         print(" Interpretation:") 
         
         if any(crisis_flags):
-            print("\n \u26A0\uFE0F COUNTRY AT RISK: Crisis likely within 7 years.\n")
+            print("\n \u26A0\uFE0F CRISIS ALERT: Crisis likely within 10 years.\n")
             print("\n -> Policy Advice: Strengthen fiscal and monetary policies, build reserves, seek IMF support early. \n")
         elif any(p > 0.30 for p in probs.values()):
-            print("\n \U0001F6A8 ELEVATED RISK: Monitor closely, crisis possible within 7 years.\n")
+            print("\n \U0001F6A8 ELEVATED RISK: Monitor closely, crisis possible within 10 years.\n")
             print("\n -> Policy Advice: Enhance surveillance, consider preemptive measures to bolster economic stability. \n")
         else:
             print("\n \U00002705 LOW RISK: No crisis signals based on macrovariables.\n")

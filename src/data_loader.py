@@ -198,17 +198,17 @@ def build_and_save_panels(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
     merged[macro_vars] = merged[macro_vars].fillna(merged[macro_vars].mean())
     print("Global-mean fallback imputation completed.")
 
-    #5# Create future crisis indicators (1 to 7 years ahead)
+    #5# Create future crisis indicators (1 to 10 years ahead)
     merged = merged.sort_values(["country_code", "year"])
 
-    for h in range(1, 8):  # horizons 1 to 7 years ahead
+    for h in range(1, 11):  # horizons 1 to 10 years ahead
         col_name = f"crisis_h{h}"
         merged[col_name] = (
             merged.groupby("country_code")["sovereign_crisis"].shift(-h)
         )
 
     # quick check:
-    print(merged[["country_code", "year", "sovereign_crisis", "crisis_h1", "crisis_h3", "crisis_h7"]].head(20))
+    print(merged[["country_code", "year", "sovereign_crisis", "crisis_h1", "crisis_h3", "crisis_h10"]].head(20))
 
 
     merged_out = processed_dir / "merged_weo_crisis.csv"
