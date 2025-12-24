@@ -52,22 +52,26 @@ def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis"
     y = y[mask]         # keep only non missing values in y
 
     # Then, I need to handle missing values in features
-    # Here, I choose to impute missing values using the mean of each feature (documented in report)
-    imputer = SimpleImputer(strategy="mean")
-    X_imputed = pd.DataFrame(
-        imputer.fit_transform(X),
-        columns=feature_cols,
-        index=X.index,
-    )
-
-
+    # I chose to impute missing values using the mean of each feature (documented in report)
     # Train/test split
     X_train, X_test, y_train, y_test = train_test_split(
-        X_imputed, y, test_size=0.2, random_state=SEED, stratify=y
+        X, y, test_size=0.2, random_state=SEED, stratify=y
     )
     # 20% of data go into test set, 80% into training set
     # SEED for reproducibility, ensuring consistent splits across runs
     # Stratify to maintain class distribution in both sets
+    imputer = SimpleImputer(strategy="mean")
+
+    X_train = pd.DataFrame(
+        imputer.fit_transform(X_train),
+        columns=X_train.columns,
+        index=X_train.index,
+    )
+
+    X_test = pd.DataFrame(
+        imputer.transform(X_test),
+        columns=X_test.columns,
+        index=X_test.index,)
 
     model = LogisticRegression(max_iter=2000, random_state=SEED)
     model.fit(X_train, y_train)
@@ -92,16 +96,24 @@ def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis",) -> 
     X = X[mask] # keep only rows in X where y is not NaN
     y = y[mask] # keep only non-missing values in y
 
-    imputer = SimpleImputer(strategy="mean") # imputer to fill missing values with feature means
-    X_imputed = pd.DataFrame(
-        imputer.fit_transform(X),
-        columns=feature_cols,
-        index=X.index,
-    )
-
-
     # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split( X_imputed, y, test_size=0.2, random_state=SEED, stratify=y) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=SEED, stratify=y
+    ) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
+
+    imputer = SimpleImputer(strategy="mean")
+
+    X_train = pd.DataFrame(
+        imputer.fit_transform(X_train),
+        columns=X_train.columns,
+        index=X_train.index,
+        )
+
+    X_test = pd.DataFrame(
+        imputer.transform(X_test),
+        columns=X_test.columns,
+        index=X_test.index,
+        )
 
     ### The model training
     model = RandomForestClassifier(
@@ -135,16 +147,25 @@ def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis",) -> Tuple[
     y = y[mask] # keep only non-missing values in y
 
 
-    imputer = SimpleImputer(strategy="mean") # imputer to fill missing values with feature means
-    X_imputed = pd.DataFrame(
-        imputer.fit_transform(X),
-        columns=feature_cols,
-        index=X.index,
+    # Train/test split
+    X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=SEED, stratify=y
+    ) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
+    
+    imputer = SimpleImputer(strategy="mean")
+
+    X_train = pd.DataFrame(
+        imputer.fit_transform(X_train),
+        columns=X_train.columns,
+        index=X_train.index,
     )
 
-    # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split( X_imputed, y, test_size=0.2, random_state=SEED, stratify=y) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
-
+    X_test = pd.DataFrame(
+        imputer.transform(X_test),
+        columns=X_test.columns,
+        index=X_test.index,
+    )
+    
     ### The model training
     model = XGBClassifier(
         n_estimators=300,
