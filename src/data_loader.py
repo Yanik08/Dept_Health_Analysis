@@ -198,21 +198,26 @@ def build_and_save_panels(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
     merged[macro_vars] = merged[macro_vars].fillna(merged[macro_vars].mean())
     print("Global-mean fallback imputation completed.")
 
-    #5# Create future crisis indicators (1 to 10 years ahead)
+    #5# Create future crisis indicators (within 3, 5, 10 years)
     merged = merged.sort_values(["country_code", "year"])
+    old_h_cols = [c for c in merged.columns if c.startswith("crisis_h")]
+    if old_h_cols:
+        merged = merged.drop(columns=old_h_cols)
 
-    for h in range(1, 11):  # horizons 1 to 10 years ahead
-        col_name = f"crisis_h{h}"
-        merged[col_name] = (
-            merged.groupby("country_code")["sovereign_crisis"].shift(-h)
-        )
+    horizons = [3, 5, 10]
+    for h in horizons:
+        future = [
+            merged.groupby("country_code")["sovereign_crisis"].shift(-k)
+            for k in range(1, h + 1)
+        ]
+        merged[f"crisis_h{h}"] = pd.concat(future, axis=1).max(axis=1)
 
-    # quick check:
-    print(merged[["country_code", "year", "sovereign_crisis", "crisis_h1", "crisis_h3", "crisis_h10"]].head(20))
-
-
+    # quick check (after the loop!)
+    print("Horizon cols now:", [c for c in merged.columns if c.startswith("crisis_h")])
+    
     merged_out = processed_dir / "merged_weo_crisis.csv"
     merged.to_csv(merged_out, index=False)
     print(f"Saved merged panel to: {merged_out}")
 
     return weo_panel, merged
+
