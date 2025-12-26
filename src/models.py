@@ -31,9 +31,39 @@ def get_feature_columns(df: pd.DataFrame, target: str) -> List[str]:
 # these columns are excluded because they are either the target variable or identifiers, or they are helper columns used to construct the target variable.
 # The remaining columns are considered features for model training.
 
+# Chronological splitter
+def split_train_test(
+    X: pd.DataFrame,
+    y: pd.Series,
+    years: pd.Series,
+    split_method: str = "chronological",
+    test_share_years: float = 0.2,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+    """
+    Split data either randomly (robustness) or chronologically by year (main).
+    For chronological: test = last ~20% of *years* (not rows).
+    """
+    if split_method == "random":
+        return train_test_split(X, y, test_size=0.2, random_state=SEED, stratify=y)
+
+    if split_method != "chronological":
+        raise ValueError(f"split_method must be 'chronological' or 'random', got {split_method}")
+
+    unique_years = sorted(years.dropna().unique())
+    n_test_years = max(1, int(round(len(unique_years) * test_share_years)))
+    test_years = set(unique_years[-n_test_years:])
+
+    test_mask = years.isin(test_years)
+
+    X_train = X.loc[~test_mask]
+    X_test = X.loc[test_mask]
+    y_train = y.loc[~test_mask]
+    y_test = y.loc[test_mask]
+
+    return X_train, X_test, y_train, y_test
 
 ##### Train logistic regression model
-def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis") -> Tuple[LogisticRegression, pd.DataFrame, pd.Series]:
+def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis", split_method: str = "chronological") -> Tuple[LogisticRegression, pd.DataFrame, pd.Series]:
     """Train a logistic regression model."""
     # Feature engineering
     feature_cols = get_feature_columns(df, target)     # calls function defined above, returns list of feature column names & excludes target and id columns
@@ -51,13 +81,12 @@ def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis"
     X = X[mask]         # keep only rows in X where y is not NaN
     y = y[mask]         # keep only non missing values in y
 
+    years = df.loc[mask, "year"] # get years corresponding to non-missing target rows
+
     # Then, I need to handle missing values in features
     # I chose to impute missing values using the mean of each feature (documented in report)
     # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=SEED, stratify=y
-    )
-    # 20% of data go into test set, 80% into training set
+    X_train, X_test, y_train, y_test = split_train_test(X, y, years, split_method=split_method)
     # SEED for reproducibility, ensuring consistent splits across runs
     # Stratify to maintain class distribution in both sets
     imputer = SimpleImputer(strategy="mean")
@@ -80,7 +109,7 @@ def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis"
     return model, X_test, y_test
 
 ##### Train random forest model #####
-def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis",) -> Tuple[RandomForestClassifier, pd.DataFrame, pd.Series]:
+def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis", split_method: str = "chronological") -> Tuple[RandomForestClassifier, pd.DataFrame, pd.Series]:
     """Train a Random Forest classifier."""
 
     # same feature engineering / cleaning as in train_logistic_regression
@@ -96,10 +125,10 @@ def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis",) -> 
     X = X[mask] # keep only rows in X where y is not NaN
     y = y[mask] # keep only non-missing values in y
 
+    years = df.loc[mask, "year"]
+
     # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=SEED, stratify=y
-    ) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
+    X_train, X_test, y_train, y_test = split_train_test(X, y, years, split_method=split_method)
 
     imputer = SimpleImputer(strategy="mean")
 
@@ -130,7 +159,7 @@ def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis",) -> 
     return model, X_test, y_test
 
 ##### Train XGBoost model #####
-def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis",) -> Tuple[XGBClassifier, pd.DataFrame, pd.Series]:
+def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis", split_method: str = "chronological") -> Tuple[XGBClassifier, pd.DataFrame, pd.Series]:
     """Train an XGBoost classifier."""
 
     # same feature engineering / cleaning as in the other models
@@ -146,11 +175,10 @@ def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis",) -> Tuple[
     X = X[mask] # keep only rows in X where y is not NaN
     y = y[mask] # keep only non-missing values in y
 
+    years = df.loc[mask, "year"]
 
     # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=SEED, stratify=y
-    ) # 20% test size, 80% training size, SEED for reproducibility, stratify to maintain class distribution
+    X_train, X_test, y_train, y_test = split_train_test(X, y, years, split_method=split_method)
     
     imputer = SimpleImputer(strategy="mean")
 

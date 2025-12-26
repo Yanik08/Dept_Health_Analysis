@@ -1,7 +1,17 @@
 """Model evaluation and visualization."""
 from pathlib import Path
 import pandas as pd
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, RocCurveDisplay
+from sklearn.metrics import (
+    accuracy_score,
+    roc_auc_score,
+    confusion_matrix,
+    RocCurveDisplay,
+    precision_score,
+    recall_score,
+    f1_score,
+    balanced_accuracy_score,
+    average_precision_score,
+)
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -134,50 +144,67 @@ def evaluate_rf(model, X_test, y_test, results_dir: Path | None = None):
 
 ##### Evaluate XGBoost model ##### Again, similar to above
 
-def evaluate_xgb(model, X_test, y_test, results_dir: Path | None = None):
+def evaluate_xgb(model, X_test, y_test, results_dir: Path | None = None, threshold: float = 0.5):
     """
     Evaluate the XGBoost model and optionally save results.
+
+    threshold:
+        probability cutoff for predicting class 1 (crisis). Default 0.5.
+        Lower it (e.g., 0.2) to catch more crises (higher recall).
     """
-    # Predictions
-    y_pred = model.predict(X_test)
-    # XGBoost returns probabilities via predict_proba too
+    # Probabilities
     y_proba = model.predict_proba(X_test)[:, 1]
+
+    # Apply custom threshold instead of default 0.5
+    y_pred = (y_proba >= threshold).astype(int)
 
     # Metrics
     accuracy = accuracy_score(y_test, y_pred)
-    roc_auc = roc_auc_score(y_test, y_proba)
+    roc_auc = roc_auc_score(y_test, y_proba)  # IMPORTANT: AUC uses probabilities
+    ap = average_precision_score(y_test, y_proba)  # PR-AUC (good for imbalanced)
+    precision = precision_score(y_test, y_pred, zero_division=0)
+    recall = recall_score(y_test, y_pred, zero_division=0)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+    bal_acc = balanced_accuracy_score(y_test, y_pred)
     cm = confusion_matrix(y_test, y_pred)
 
-    print(f"Accuracy (XGB): {accuracy:.3f}")
-    print(f"ROC AUC (XGB): {roc_auc:.3f}")
+    print(f"Threshold (XGB): {threshold:.2f}")
+    print(f"Accuracy  (XGB): {accuracy:.3f}")
+    print(f"ROC AUC   (XGB): {roc_auc:.3f}")
+    print(f"PR AUC/AP (XGB): {ap:.3f}")
+    print(f"Precision (XGB): {precision:.3f}")
+    print(f"Recall    (XGB): {recall:.3f}")
+    print(f"F1        (XGB): {f1:.3f}")
+    print(f"Bal Acc   (XGB): {bal_acc:.3f}")
     print("Confusion Matrix (XGB):")
     print(cm)
 
-    # Plot ROC Curve
+    # Plot ROC curve
     RocCurveDisplay.from_estimator(model, X_test, y_test)
     plt.title("ROC Curve (XGBoost)")
 
     if results_dir is not None:
         results_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save ROC curve figure
+        # Save ROC curve
         roc_path = results_dir / "xgb_roc_curve.png"
         plt.savefig(roc_path, bbox_inches="tight")
         print(f"Saved XGB ROC curve to: {roc_path}")
 
-        # Save confusion matrix as plot
+        # Save confusion matrix plot
         plt.figure(figsize=(6, 4))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
-        plt.title("Confusion Matrix (XGBoost)")
+        plt.title(f"Confusion Matrix (XGBoost) thr={threshold:.2f}")
         plt.tight_layout()
-        plt.savefig(results_dir / "xgb_confusion_matrix.png", bbox_inches="tight")
-        print(f"Saved XGB confusion matrix to: {results_dir / 'xgb_confusion_matrix.png'}")
+        cm_path = results_dir / "xgb_confusion_matrix.png"
+        plt.savefig(cm_path, bbox_inches="tight")
+        print(f"Saved XGB confusion matrix to: {cm_path}")
 
         # Save metrics
         metrics_df = pd.DataFrame(
             {
-                "metric": ["accuracy", "roc_auc"],
-                "value": [accuracy, roc_auc],
+                "metric": ["threshold", "accuracy", "roc_auc", "pr_auc_ap", "precision", "recall", "f1", "balanced_accuracy"],
+                "value": [threshold, accuracy, roc_auc, ap, precision, recall, f1, bal_acc],
             }
         )
         metrics_path = results_dir / "xgb_metrics.csv"
@@ -185,13 +212,10 @@ def evaluate_xgb(model, X_test, y_test, results_dir: Path | None = None):
         print(f"Saved XGB metrics to: {metrics_path}")
 
         # Save predictions
-        preds_df = pd.DataFrame(
-            {"y_true": y_test, "y_pred": y_pred, "y_proba": y_proba}
-        )
+        preds_df = pd.DataFrame({"y_true": y_test, "y_pred": y_pred, "y_proba": y_proba})
         preds_path = results_dir / "xgb_predictions.csv"
         preds_df.to_csv(preds_path, index=False)
         print(f"Saved XGB predictions to: {preds_path}")
 
     plt.show()
-
     return accuracy, roc_auc, cm
