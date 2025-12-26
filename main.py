@@ -4,7 +4,7 @@ import pandas as pd
 import joblib
 from src.data_loader import build_and_save_panels
 from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost, train_xgboost_with_val
-from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn
+from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn, choose_threshold_min_fn
 
 Variable_Labels: dict[str, str] = {
     "BCA_NGDPD": "Current account balance (% of GDP)",
@@ -82,6 +82,7 @@ def main() -> None:
     # --------------------- 7. Evaluate & save RF results ------------------------
     print("\n[7] Evaluating Random Forest model...")
     rf_accuracy, rf_roc_auc, rf_cm = evaluate_rf(rf_model, rf_X_test, rf_y_test, chrono_dir)
+    print(f"    RF Test accuracy: {rf_accuracy:.3f}")
     print(f"    RF Test ROC AUC:  {rf_roc_auc:.3f}")
     print("    RF Confusion Matrix:")
     print(rf_cm)
@@ -128,6 +129,7 @@ def main() -> None:
     # store everything you need
     xgb_h_model: dict[int, object] = {}
     xgb_h_metrics: dict[int, tuple[float, float]] = {}  # (accuracy, roc_auc)
+    xgb_h_thr_pess: dict[int, float] = {}
 
     for h in [3, 5, 10]:
         print(f"    Training XGBoost for within-{h}-years horizon...")
@@ -140,7 +142,8 @@ def main() -> None:
         xgb_h_model[h] = m_h
 
         probas_val_h = m_h.predict_proba(X_val_h)[:, 1]
-        thr_h = choose_threshold_min_fn(y_val_h, probas_val_h)        
+        thr_h = choose_threshold_min_fn(y_val_h, probas_val_h)
+        xgb_h_thr_pess[h] = thr_h      
 
         # Evaluate + save in a horizon-specific folder (no overwriting)
         out_dir_h = chrono_dir / f"xgb_h{h}"
@@ -212,31 +215,58 @@ def main() -> None:
         print("------------------------------------------------------------")
         print("\n Crisis probabilities (within 3, 5, 10 years):\n")
         
-        crisis_flags: list[int] = []
         probs: dict[int, float] = {}
-
+        crisis_flags_opt: list[int] = []
+        crisis_flags_pess: list[int] = []
+        OPTIMISTIC_THR = 0.50
+        
         for h in HORIZONS:
             model_h = xgb_h_model[h]
             p = float(model_h.predict_proba(X_new)[0, 1])
-            crisis = int(p >= 0.5)
             probs[h] = p
-            crisis_flags.append(crisis)
-            print(f" Within {h} years: p = {p:.3f} --> crisis = {crisis}")
+
+            thr_pess = float(xgb_h_thr_pess[h])
+
+            crisis_opt = int(p >= OPTIMISTIC_THR)
+            crisis_pess = int(p >= thr_pess)
+
+            crisis_flags_opt.append(crisis_opt)
+            crisis_flags_pess.append(crisis_pess)
+
+            print(
+                f" Within {h} years: p={p:.3f} | "
+                f"optimistic={crisis_opt} (thr={OPTIMISTIC_THR:.2f}) | "
+                f"pessimistic={crisis_pess} (thr={thr_pess:.2f})"
+            )
 
         print("------------------------------------------------------------\n")
         print("------------------------------------------------------------")
         print(" Interpretation:")
+        print("\nInterpretation:")
 
-        if any(crisis_flags):
-            print(f"\n \u26A0\uFE0F CRISIS ALERT: Crisis likely within {max(HORIZONS)} years.\n")
-            print("\n -> Policy Advice: Strengthen fiscal and monetary policies, build reserves, seek IMF support early. \n")
+        # ---------------- Optimistic (0.50) ----------------
+        print("\n[Optimistic rule]")
+        if any(crisis_flags_opt):
+            print(f"\n\u26A0\uFE0F  CRISIS ALERT (optimistic): Crisis likely within {max(HORIZONS)} years.")
+            print("-> Policy Advice: Strengthen fiscal and monetary policies, build reserves, seek IMF support early.")
         elif any(p > 0.30 for p in probs.values()):
-            print(f"\n \U0001F6A8 ELEVATED RISK: Monitor closely, crisis possible within {max(HORIZONS)} years.\n")
-            print("\n -> Policy Advice: Enhance surveillance, consider preemptive measures to bolster economic stability. \n")
+            print(f"\n\U0001F6A8  ELEVATED RISK (optimistic): Monitor closely, crisis possible within {max(HORIZONS)} years.")
+            print("-> Policy Advice: Enhance surveillance, consider preemptive measures, communicate clearly.")
         else:
-            print("\n \U00002705 LOW RISK: No crisis signals based on macrovariables.\n")
-            print("\n -> Policy Advice: Maintain prudent fiscal and monetary policies, continue monitoring economic indicators. \n")
+            print("\n\U00002705  LOW RISK (optimistic): No crisis signals based on macrovariables.")
+            print("-> Policy Advice: Maintain prudent fiscal and monetary policies.")
 
+        # ---------------- Pessimistic (val-tuned) ----------------
+        print("\n[Pessimistic rule]")
+        if any(crisis_flags_pess):
+            print(f"\n\u26A0\uFE0F  CRISIS ALERT (pessimistic): Early-warning flag within {max(HORIZONS)} years.")
+            print("-> Policy Advice: Prepare contingency plans, increase buffers, coordinate with international partners.")
+        elif any(p > 0.30 for p in probs.values()):
+            print(f"\n\U0001F6A8  ELEVATED RISK (pessimistic): Monitor closely, crisis possible within {max(HORIZONS)} years.")
+            print("-> Policy Advice: Tighten monitoring, stress-test public finances, consider precautionary funding options.")
+        else:
+            print("\n\U00002705  LOW RISK (pessimistic): No crisis signals based on macrovariables.")
+            print("-> Policy Advice: Stay vigilant; pessimistic rule is stricter but no alarm triggered.")
         print("\n ------------------------------------------------------------\n")
     print("\n\n        \U0001F60E main.py finished successfully \U0001F918\U0001F9A7 \n\n")
 
