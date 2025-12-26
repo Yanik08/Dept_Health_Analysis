@@ -28,9 +28,22 @@ def evaluate_logit(model, X_test, y_test, results_dir: Path | None = None):
     accuracy = accuracy_score(y_test, y_pred) # accuracy calculation
     roc_auc = roc_auc_score(y_test, y_proba) # ROC AUC calculation
     cm = confusion_matrix(y_test, y_pred)  # confusion matrix calculation
+    # Extra metrics for imbalanced crises
+    precision = precision_score(y_test, y_pred, zero_division=0)
+    recall = recall_score(y_test, y_pred, zero_division=0)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+    bal_acc = balanced_accuracy_score(y_test, y_pred)
+    pr_auc = average_precision_score(y_test, y_proba)
 
-    print(f"Accuracy: {accuracy:.3f}") # accuracy printout
-    print(f"ROC AUC: {roc_auc:.3f}") # ROC AUC printout
+    tn, fp, fn, tp = cm.ravel()
+
+    print(f"Precision (Logit): {precision:.3f}")
+    print(f"Recall    (Logit): {recall:.3f}")
+    print(f"F1        (Logit): {f1:.3f}")
+    print(f"Bal Acc   (Logit): {bal_acc:.3f}")
+    print(f"PR AUC    (Logit): {pr_auc:.3f}")
+    print(f"Accuracy (Logit): {accuracy:.3f}") # accuracy printout
+    print(f"ROC AUC (Logit): {roc_auc:.3f}") # ROC AUC printout
     print("Confusion Matrix:") # confusion matrix header printout
     print(cm) # confusion matrix printout
 
@@ -57,8 +70,8 @@ def evaluate_logit(model, X_test, y_test, results_dir: Path | None = None):
         # Save metrics
         metrics_df = pd.DataFrame(
             {
-                "metric": ["accuracy", "roc_auc", "confusion_matrix"], # metric names
-                "value": [accuracy, roc_auc, cm], # corresponding metric values
+                "metric": ["accuracy", "roc_auc", "pr_auc", "precision", "recall", "f1", "balanced_accuracy", "tn", "fp", "fn", "tp"],
+                "value":  [accuracy,  roc_auc,  pr_auc,  precision,  recall,  f1,  bal_acc,             tn,   fp,   fn,   tp],
             }
         )
 
@@ -93,7 +106,19 @@ def evaluate_rf(model, X_test, y_test, results_dir: Path | None = None):
     accuracy = accuracy_score(y_test, y_pred)
     roc_auc = roc_auc_score(y_test, y_proba)
     cm = confusion_matrix(y_test, y_pred)
+    precision = precision_score(y_test, y_pred, zero_division=0)
+    recall = recall_score(y_test, y_pred, zero_division=0)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+    bal_acc = balanced_accuracy_score(y_test, y_pred)
+    pr_auc = average_precision_score(y_test, y_proba)
 
+    tn, fp, fn, tp = cm.ravel()
+
+    print(f"Precision (RF): {precision:.3f}")
+    print(f"Recall    (RF): {recall:.3f}")
+    print(f"F1        (RF): {f1:.3f}")
+    print(f"Bal Acc   (RF): {bal_acc:.3f}")
+    print(f"PR AUC    (RF): {pr_auc:.3f}")
     print(f"Accuracy (RF): {accuracy:.3f}")
     print(f"ROC AUC (RF): {roc_auc:.3f}")
     print("Confusion Matrix (RF):")
@@ -122,10 +147,11 @@ def evaluate_rf(model, X_test, y_test, results_dir: Path | None = None):
         # Save metrics
         metrics_df = pd.DataFrame(
             {
-                "metric": ["accuracy", "roc_auc"],
-                "value": [accuracy, roc_auc],
+                "metric": ["accuracy", "roc_auc", "pr_auc", "precision", "recall", "f1", "balanced_accuracy", "tn", "fp", "fn", "tp"],
+                "value":  [accuracy,  roc_auc,  pr_auc,  precision,  recall,  f1,  bal_acc,             tn,   fp,   fn,   tp],
             }
         )
+
         metrics_path = results_dir / "rf_metrics.csv"
         metrics_df.to_csv(metrics_path, index=False)
         print(f"Saved RF metrics to: {metrics_path}")
