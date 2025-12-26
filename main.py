@@ -3,8 +3,8 @@ from xml.parsers.expat import model
 import pandas as pd
 import joblib
 from src.data_loader import build_and_save_panels
-from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost
-from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb
+from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost, train_xgboost_with_val
+from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn
 
 Variable_Labels: dict[str, str] = {
     "BCA_NGDPD": "Current account balance (% of GDP)",
@@ -133,15 +133,19 @@ def main() -> None:
         print(f"    Training XGBoost for within-{h}-years horizon...")
 
         # Train
-        m_h, X_test_h, y_test_h = train_xgboost(
+        m_h, X_val_h, y_val_h, X_test_h, y_test_h = train_xgboost_with_val(
             df, target=f"crisis_h{h}", split_method="chronological"
         )
+
         xgb_h_model[h] = m_h
+
+        probas_val_h = m_h.predict_proba(X_val_h)[:, 1]
+        thr_h = choose_threshold_min_fn(y_val_h, probas_val_h)        
 
         # Evaluate + save in a horizon-specific folder (no overwriting)
         out_dir_h = chrono_dir / f"xgb_h{h}"
         acc_h, auc_h, cm_h = evaluate_xgb(
-            m_h, X_test_h, y_test_h, out_dir_h, threshold=0.20
+            m_h, X_test_h, y_test_h, out_dir_h, threshold=thr_h
         )
         xgb_h_metrics[h] = (acc_h, auc_h)
 

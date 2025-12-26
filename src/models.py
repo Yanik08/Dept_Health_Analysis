@@ -62,6 +62,56 @@ def split_train_test(
 
     return X_train, X_test, y_train, y_test
 
+# define threshold properly for val/test split
+def split_train_val_test(
+    X: pd.DataFrame,
+    y: pd.Series,
+    years: pd.Series,
+    split_method: str = "chronological",
+    val_share_years: float = 0.2,
+    test_share_years: float = 0.2,
+):
+    """
+    Returns X_train, X_val, X_test, y_train, y_val, y_test
+
+    Chronological: splits by YEAR (not rows).
+    Test = last test_share_years of years.
+    Val  = years just before test years.
+    """
+    if split_method == "random":
+        # First split out test
+        X_tmp, X_test, y_tmp, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=SEED, stratify=y
+        )
+        # Then split tmp into train/val
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_tmp, y_tmp, test_size=0.25, random_state=SEED, stratify=y_tmp
+        )
+        return X_train, X_val, X_test, y_train, y_val, y_test
+
+    if split_method != "chronological":
+        raise ValueError(f"split_method must be 'chronological' or 'random', got {split_method}")
+
+    unique_years = sorted(years.dropna().unique())
+    n_test = max(1, int(round(len(unique_years) * test_share_years)))
+    n_val = max(1, int(round(len(unique_years) * val_share_years)))
+
+    test_years = set(unique_years[-n_test:])
+    val_years = set(unique_years[-(n_test + n_val):-n_test])
+
+    test_mask = years.isin(test_years)
+    val_mask = years.isin(val_years)
+
+    X_train = X.loc[~(test_mask | val_mask)]
+    X_val   = X.loc[val_mask]
+    X_test  = X.loc[test_mask]
+
+    y_train = y.loc[~(test_mask | val_mask)]
+    y_val   = y.loc[val_mask]
+    y_test  = y.loc[test_mask]
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
 ##### Train logistic regression model
 def train_logistic_regression(df: pd.DataFrame, target: str = "sovereign_crisis", split_method: str = "chronological") -> Tuple[LogisticRegression, pd.DataFrame, pd.Series]:
     """Train a logistic regression model."""
@@ -209,3 +259,45 @@ def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis", split_meth
     model.fit(X_train, y_train) # fit the XGBoost model to training data
 
     return model, X_test, y_test
+
+# Train XGBoost with proper thresholding using validation set
+def train_xgboost_with_val(
+    df: pd.DataFrame,
+    target: str,
+    split_method: str = "chronological",
+):
+    feature_cols = get_feature_columns(df, target)
+    X = df[feature_cols].copy()
+    y = df[target].copy()
+
+    X = X.apply(pd.to_numeric, errors="coerce")
+
+    mask = y.notna()
+    X = X[mask]
+    y = y[mask]
+    years = df.loc[mask, "year"]
+
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(
+        X, y, years, split_method=split_method
+    )
+
+    imputer = SimpleImputer(strategy="mean")
+    X_train = pd.DataFrame(imputer.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+    X_val   = pd.DataFrame(imputer.transform(X_val),     columns=X_val.columns,   index=X_val.index)
+    X_test  = pd.DataFrame(imputer.transform(X_test),    columns=X_test.columns,  index=X_test.index)
+
+    model = XGBClassifier(
+        n_estimators=300,
+        max_depth=6,
+        learning_rate=0.1,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=SEED,
+        objective="binary:logistic",
+        eval_metric="logloss",
+        n_jobs=-1,
+    )
+
+    model.fit(X_train, y_train)
+
+    return model, X_val, y_val, X_test, y_test

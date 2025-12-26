@@ -14,6 +14,27 @@ from sklearn.metrics import (
 )
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
+
+def choose_threshold_min_fn(y_val, proba_val) -> float:
+    """
+    Choose the threshold that maximizes recall (minimizes false negatives) on validation.
+    If multiple thresholds give the same recall, pick the highest one (fewer false positives).
+    """
+    best_thr = 0.01
+    best_recall = -1.0
+
+    for thr in np.linspace(0.01, 0.99, 99):
+        y_pred = (proba_val >= thr).astype(int)
+        rec = recall_score(y_val, y_pred, zero_division=0)
+
+        # maximize recall; tie-breaker: higher thr (less FP)
+        if (rec > best_recall) or (rec == best_recall and thr > best_thr):
+            best_recall = rec
+            best_thr = float(thr)
+
+    print(f"    Threshold chosen (min FN / max recall): {best_thr:.2f} | recall={best_recall:.3f}")
+    return best_thr
 
 ##### Evaluate Logistic Regression model #####
 def evaluate_logit(model, X_test, y_test, results_dir: Path | None = None):
@@ -180,8 +201,7 @@ def evaluate_xgb(model, X_test, y_test, results_dir: Path | None = None, thresho
     """
     # Probabilities
     y_proba = model.predict_proba(X_test)[:, 1]
-
-    # Apply custom threshold instead of default 0.5
+    # Apply threshold to get class predictions
     y_pred = (y_proba >= threshold).astype(int)
 
     # Metrics
