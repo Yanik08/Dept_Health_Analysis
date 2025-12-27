@@ -1,10 +1,9 @@
 from pathlib import Path
-from xml.parsers.expat import model
 import pandas as pd
 import joblib
 from src.data_loader import build_and_save_panels
 from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost, train_xgboost_with_val
-from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn, choose_threshold_min_fn
+from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn
 
 Variable_Labels: dict[str, str] = {
     "BCA_NGDPD": "Current account balance (% of GDP)",
@@ -55,109 +54,100 @@ def main() -> None:
 
     print("Targets in df:", [c for c in df.columns if c.startswith("crisis_h")]) # added for debug, had issues before, handy to see targets
 
-                        #### Logistic Regression Model #####
-    # --------------------- 3. Train logistic regression ---------------------
-    print("\n[3] Training Logistic Regression model for within-3-years crisis...")
-    logit_model, X_test, y_test = train_logistic_regression(df, target="crisis_h3", split_method="chronological")
-    print("    Model trained.")
+    ### ----------------Chronological split model training + evaluation ----------------
 
-    # --------------------- 4. Evaluate & save results ---------------------
-    print("\n[4] Evaluating Logistic Regression model...")
-    accuracy, roc_auc, cm = evaluate_logit(logit_model, X_test, y_test, chrono_dir)
-    print(f"    Test accuracy: {accuracy:.3f}")
-    print(f"    Test ROC AUC: {roc_auc:.3f}")
-    print("    Confusion Matrix:")
-    print(cm)
-
-    # --------------------- 5. Save Logistic Regression model ---------------------
-    logit_model_path = chrono_dir / "logit_model.joblib"
-    joblib.dump(logit_model, logit_model_path)
-    print(f"\n[5] Saved trained Logistic Regression model to: {logit_model_path}")
-
-                        #### Random Forest Model #####
-    # --------------------- 6. Train Random Forest -------------------------------
-    print("\n[6] Training Random Forest model for within-3-years crisis...")
-    rf_model, rf_X_test, rf_y_test = train_random_forest(df, target="crisis_h3", split_method="chronological")
-
-    # --------------------- 7. Evaluate & save RF results ------------------------
-    print("\n[7] Evaluating Random Forest model...")
-    rf_accuracy, rf_roc_auc, rf_cm = evaluate_rf(rf_model, rf_X_test, rf_y_test, chrono_dir)
-    print(f"    RF Test accuracy: {rf_accuracy:.3f}")
-    print(f"    RF Test ROC AUC:  {rf_roc_auc:.3f}")
-    print("    RF Confusion Matrix:")
-    print(rf_cm)
-
-    rf_model_path = chrono_dir / "rf_model.joblib"
-    joblib.dump(rf_model, rf_model_path)
-    print(f"    Saved RF model to: {rf_model_path}")
-
-    # --------------------- 8. Train RF for horizons 3/5/10 ----------------------
-    print("\n[8] Training Random Forest early-warning models for horizons 3, 5, 10...")
-    rf_h_models: dict[int, object] = {}
+    print("\n[CHRONO] Training + evaluating every model by horizon (3, 5, 10)...")
+    # ---------------------- LOGIT: horizons 3/5/10 ----------------------
+    print("\n[3] LOGIT: Training + evaluating for horizons 3, 5, 10...")
+    logit_h_model: dict[int, object] = {}
 
     for h in HORIZONS:
-        print(f"    Training Random Forest for within-{h}-years horizon...")
-        model_h, _, _ = train_random_forest(df, target=f"crisis_h{h}", split_method="chronological")
-        rf_h_models[h] = model_h
+        print("------------------------------------------------------------")
+        print(f"    [LOGIT] Horizon h={h}")
+        out_dir_h = chrono_dir / f"logit_h{h}"
+        out_dir_h.mkdir(parents=True, exist_ok=True)
+
+        logit_model_h, X_test_h, y_test_h = train_logistic_regression(
+            df, target=f"crisis_h{h}", split_method="chronological"
+        )
+
+        acc_h, auc_h, cm_h = evaluate_logit(logit_model_h, X_test_h, y_test_h, out_dir_h)
+        print(f"    LOGIT h={h} | accuracy={acc_h:.3f} | roc_auc={auc_h:.3f}")
+        print("    Confusion matrix:")
+        print(cm_h)
+
+        model_path_h = out_dir_h / f"logit_model_h{h}.joblib"
+        joblib.dump(logit_model_h, model_path_h)
+        print(f"    Saved LOGIT model to: {model_path_h}")
+
+        logit_h_model[h] = logit_model_h
+
+    print("    All LOGIT models trained + evaluated.\n")
 
 
-                      #### XGBoost Model #####
-    # --------------------- 9. Train XGBoost -------------------------------
-    print("\n[9] Training XGBoost model for within-3-years crisis...")
-    xgb_model, xgb_X_test, xgb_y_test = train_xgboost(
-        df, target="crisis_h3", split_method="chronological"
-    )
-    print("    XGBoost model trained.")
+    # ---------------------- RF: horizons 3/5/10 ----------------------
+    print("\n[6] RF: Training + evaluating for horizons 3, 5, 10...")
+    rf_h_model: dict[int, object] = {}
 
-    # --------------------- 10. Evaluate & save XGBoost results ---------------------
-    print("\n[10] Evaluating XGBoost model...")
-    xgb_accuracy, xgb_roc_auc, xgb_cm = evaluate_xgb(
-        xgb_model, xgb_X_test, xgb_y_test, chrono_dir, threshold=0.20
-    )
+    for h in HORIZONS:
+        print("------------------------------------------------------------")
+        print(f"    [RF] Horizon h={h}")
+        out_dir_h = chrono_dir / f"rf_h{h}"
+        out_dir_h.mkdir(parents=True, exist_ok=True)
 
-    print(f"    XGB Test accuracy: {xgb_accuracy:.3f}")
-    print(f"    XGB Test ROC AUC:  {xgb_roc_auc:.3f}")
-    print("    XGB Confusion Matrix:")
-    print(xgb_cm)
+        rf_model_h, rf_X_test_h, rf_y_test_h = train_random_forest(
+            df, target=f"crisis_h{h}", split_method="chronological"
+        )
 
-    xgb_model_path = chrono_dir / "xgb_model.joblib"
-    joblib.dump(xgb_model, xgb_model_path)
-    print(f"    Saved XGB model to: {xgb_model_path}")
-    # ----------------------11. Train XGB for horizons 3, 5, 10---------------- 
-    print("\n[11] Training + evaluating XGBoost models for horizons 3, 5, 10...")
+        acc_h, auc_h, cm_h = evaluate_rf(rf_model_h, rf_X_test_h, rf_y_test_h, out_dir_h)
+        print(f"    RF h={h} | accuracy={acc_h:.3f} | roc_auc={auc_h:.3f}")
+        print("    Confusion matrix:")
+        print(cm_h)
 
-    # store everything you need
+        model_path_h = out_dir_h / f"rf_model_h{h}.joblib"
+        joblib.dump(rf_model_h, model_path_h)
+        print(f"    Saved RF model to: {model_path_h}")
+
+        rf_h_model[h] = rf_model_h
+
+    print("    All RF models trained + evaluated.\n")
+
+
+    # ---------------------- XGB: horizons 3/5/10 (VAL threshold) ----------------------
+    print("\n[9] XGB: Training + evaluating for horizons 3, 5, 10 (chrono + val threshold)...")
+
     xgb_h_model: dict[int, object] = {}
     xgb_h_metrics: dict[int, tuple[float, float]] = {}  # (accuracy, roc_auc)
-    xgb_h_thr_pess: dict[int, float] = {}
+    xgb_h_thr_pess: dict[int, float] = {}               # val-tuned threshold (min FN) per horizon
 
-    for h in [3, 5, 10]:
-        print(f"    Training XGBoost for within-{h}-years horizon...")
+    for h in HORIZONS:
+        print("------------------------------------------------------------")
+        print(f"    [XGB] Horizon h={h}")
+        out_dir_h = chrono_dir / f"xgb_h{h}"
+        out_dir_h.mkdir(parents=True, exist_ok=True)
 
-        # Train
         m_h, X_val_h, y_val_h, X_test_h, y_test_h = train_xgboost_with_val(
             df, target=f"crisis_h{h}", split_method="chronological"
         )
 
-        xgb_h_model[h] = m_h
-
         probas_val_h = m_h.predict_proba(X_val_h)[:, 1]
         thr_h = choose_threshold_min_fn(y_val_h, probas_val_h)
-        xgb_h_thr_pess[h] = thr_h      
+        xgb_h_thr_pess[h] = float(thr_h)
 
-        # Evaluate + save in a horizon-specific folder (no overwriting)
-        out_dir_h = chrono_dir / f"xgb_h{h}"
-        acc_h, auc_h, cm_h = evaluate_xgb(
-            m_h, X_test_h, y_test_h, out_dir_h, threshold=thr_h
-        )
+        acc_h, auc_h, cm_h = evaluate_xgb(m_h, X_test_h, y_test_h, out_dir_h, threshold=xgb_h_thr_pess[h])
         xgb_h_metrics[h] = (acc_h, auc_h)
 
-        # Save model
+        print(f"    XGB h={h} | accuracy={acc_h:.3f} | roc_auc={auc_h:.3f} | thr_pess={xgb_h_thr_pess[h]:.2f}")
+        print("    Confusion matrix:")
+        print(cm_h)
+
         model_path_h = out_dir_h / f"xgb_model_h{h}.joblib"
         joblib.dump(m_h, model_path_h)
         print(f"    Saved XGB model to: {model_path_h}")
 
-    print("    All XGBoost models trained + evaluated.")
+        xgb_h_model[h] = m_h
+
+    print("\n[CHRONO] Done. \n")
 
                             #### Predicton model #####
     # ------------------- 12. Custom scenario prediction ---------------------
