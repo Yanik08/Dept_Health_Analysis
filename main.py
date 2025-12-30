@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import joblib
+import numpy as np
 from src.data_loader import build_and_save_panels
 from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost, train_xgboost_with_val
 from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn
@@ -46,6 +47,61 @@ def main() -> None:
     # Results directories (chrono = main, random = robustness) 
     results_root = project_root / "results"
     results_root.mkdir(parents=True, exist_ok=True)
+
+    # Descriptive statistics function
+    def describe_merged_panel(df: pd.DataFrame, out_path: Path) -> None:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # basic dimensions
+        n_rows = len(df)
+        n_cols = df.shape[1]
+
+        # core identifiers (adapt names if needed)
+        cc_col = "country_code"
+        year_col = "year"
+
+        n_countries = df[cc_col].dropna().nunique() if cc_col in df.columns else np.nan
+        min_year = df[year_col].min() if year_col in df.columns else np.nan
+        max_year = df[year_col].max() if year_col in df.columns else np.nan
+
+        # missingness (top 10)
+        miss = (df.isna().mean().sort_values(ascending=False) * 100).round(2)
+        miss_top10 = miss.head(10)
+
+        # duplicate country-year check
+        dup_ctry_year = (
+            df.duplicated(subset=[cc_col, year_col]).sum()
+            if (cc_col in df.columns and year_col in df.columns)
+            else np.nan
+        )
+
+        summary = pd.DataFrame({
+            "metric": [
+                "rows", "columns", "countries",
+                "min_year", "max_year",
+                "duplicate_country_year_rows"
+            ],
+            "value": [
+                n_rows, n_cols, n_countries,
+                min_year, max_year,
+                dup_ctry_year
+            ]
+        })
+
+        # save files for report
+        summary.to_csv(out_path.with_suffix(".csv"), index=False)
+        miss_top10.to_frame("missing_%").to_csv(out_path.parent / (out_path.stem + "_missing_top10.csv"))
+
+        # console print (so it appears when you run main)
+        print("\n --- Merged Panel Overview (descriptive statistics)---")
+        print(summary.to_string(index=False))
+        print("\nTop 10 missingness (%):")
+        print(miss_top10.to_string())
+
+    # call it right after you create/load the merged df
+    describe_merged_panel(merged_df, project_root / "results" / "merged_panel_overview")
+
+
 
     chrono_dir = results_root / "chrono"
     random_dir = results_root / "random"
@@ -239,7 +295,7 @@ def main() -> None:
         if any(crisis_flags_opt):
             print(f"\n\u26A0\uFE0F  CRISIS ALERT (optimistic): Crisis likely within {max(HORIZONS)} years.")
             print("-> Policy Advice: Strengthen fiscal and monetary policies, build reserves, seek IMF support early.")
-        elif any(p > 0.30 for p in probs.values()):
+        elif any(p > 0.10 for p in probs.values()):
             print(f"\n\U0001F6A8  ELEVATED RISK (optimistic): Monitor closely, crisis possible within {max(HORIZONS)} years.")
             print("-> Policy Advice: Enhance surveillance, consider preemptive measures, communicate clearly.")
         else:

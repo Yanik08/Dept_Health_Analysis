@@ -170,6 +170,7 @@ def train_random_forest(df: pd.DataFrame, target: str = "sovereign_crisis", spli
     # Convert all features to numeric, coerce errors to NaN
     X = X.apply(pd.to_numeric, errors="coerce") # convert features to numeric data types
 
+    X = X.dropna(axis=1, how="all")  # drop columns that are all NaN
     # Drop rows where target is NaN
     mask = y.notna() # mask for non-missing target values
     X = X[mask] # keep only rows in X where y is not NaN
@@ -220,6 +221,7 @@ def train_xgboost(df: pd.DataFrame, target: str = "sovereign_crisis", split_meth
     # Convert all features to numeric, coerce errors to NaN
     X = X.apply(pd.to_numeric, errors="coerce") # convert features to numeric data types
 
+    X = X.dropna(axis=1, how="all")  # drop columns that are all NaN
     # Drop rows where target is NaN
     mask = y.notna() # mask for non-missing target values
     X = X[mask] # keep only rows in X where y is not NaN
@@ -271,6 +273,8 @@ def train_xgboost_with_val(
     y = df[target].copy()
 
     X = X.apply(pd.to_numeric, errors="coerce")
+
+    X = X.dropna(axis=1, how="all")  # drop columns that are all NaN
 
     mask = y.notna()
     X = X[mask]
