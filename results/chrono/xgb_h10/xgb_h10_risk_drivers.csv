@@ -1,0 +1,9 @@
+label,feature,importance_mean_abs_shap,direction_hint
+Nominal GDP (in billions of USD),NGDPD,2.8886461,↓ risk
+"Inflation (CPI, % change)",PCPIPCH,1.1052507,↓ risk
+Labour productivity / output index (LP),LP,0.943652,↓ risk
+Net lending/borrowing of gov. (% of GDP),GGXONLB_NGDP,0.87503076,↓ risk
+Unemployment rate (%),LUR,0.81022465,↓ risk
+Government gross debt (% of GDP),GGXWDG_NGDP,0.5360992,↓ risk
+Real GDP growth (% change),NGDP_RPCH,0.40973714,↓ risk
+Current account balance (% of GDP),BCA_NGDPD,0.31758508,↑ risk

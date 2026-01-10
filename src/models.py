@@ -37,8 +37,7 @@ def split_train_test(
     y: pd.Series,
     years: pd.Series,
     split_method: str = "chronological",
-    test_share_years: float = 0.2,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+    test_share_years: float = 0.2,) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """
     Split data either randomly (robustness) or chronologically by year (main).
     For chronological: test = last ~20% of *years* (not rows).

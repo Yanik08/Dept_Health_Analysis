@@ -4,7 +4,7 @@ import joblib
 import numpy as np
 from src.data_loader import build_and_save_panels
 from src.models import load_model_dataset, train_logistic_regression, train_random_forest, train_xgboost, train_xgboost_with_val
-from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn
+from src.evaluation import evaluate_logit, evaluate_rf, evaluate_xgb, choose_threshold_min_fn, xgb_risk_drivers_report
 
 Variable_Labels: dict[str, str] = {
     "BCA_NGDPD": "Current account balance (% of GDP)",
@@ -44,7 +44,7 @@ def main() -> None:
     df = load_model_dataset(merged_path)
     print(f"    Modelling DataFrame shape: {df.shape}")
 
-    # Results directories (chrono = main, random = robustness) 
+    # Results directories (chrono = main, random = robustness)
     results_root = project_root / "results"
     results_root.mkdir(parents=True, exist_ok=True)
 
@@ -192,6 +192,21 @@ def main() -> None:
 
         acc_h, auc_h, cm_h = evaluate_xgb(m_h, X_test_h, y_test_h, out_dir_h, threshold=xgb_h_thr_pess[h])
         xgb_h_metrics[h] = (acc_h, auc_h)
+
+        # --- XGB interpretability output for report (SHAP) ---
+        # Uses the same X_test_h that you evaluate on (so columns match the model)
+        xgb_drivers_h = xgb_risk_drivers_report(
+            model=m_h,
+            X=X_test_h,
+            results_dir=out_dir_h,
+            variable_labels=Variable_Labels,
+            top_k=12,
+            prefix=f"xgb_h{h}",
+            make_beeswarm=True
+        )
+
+        print("\nTop XGBoost risk drivers (SHAP) for horizon", h)
+        print(xgb_drivers_h.to_string(index=False))
 
         print(f"    XGB h={h} | accuracy={acc_h:.3f} | roc_auc={auc_h:.3f} | thr_pess={xgb_h_thr_pess[h]:.2f}")
         print("    Confusion matrix:")
