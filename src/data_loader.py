@@ -26,10 +26,8 @@ def impute_country_means(df: pd.DataFrame, feature_cols: list[str]) -> pd.DataFr
 
 def load_raw_weo(path: Path) -> pd.DataFrame:
     """
-    Load the raw IMF WEO dataset (CSV or Excel).
+    Load the raw IMF WEO dataset (CSV).
     """
-    if path.suffix.lower() in {".xlsx", ".xls"}:
-        return pd.read_excel(path)
     return pd.read_csv(path)
 
 
