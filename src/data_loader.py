@@ -107,7 +107,7 @@ def build_crisis_panel(raw: pd.DataFrame) -> pd.DataFrame:
         }
     )
 
-    # Rename crisis columns by position (based on your Excel layout)
+    # Rename crisis columns by position
     ext1_col = crisis.columns[3]
     ext2_col = crisis.columns[4]
     dom_col = crisis.columns[5]
@@ -210,7 +210,7 @@ def build_and_save_panels(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
         ]
         merged[f"crisis_h{h}"] = pd.concat(future, axis=1).max(axis=1)
 
-    # quick check (after the loop!)
+    # quick check
     print("Horizon cols now:", [c for c in merged.columns if c.startswith("crisis_h")])
     
     merged_out = processed_dir / "merged_weo_crisis.csv"
