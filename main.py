@@ -56,7 +56,7 @@ def main() -> None:
         n_rows = len(df)
         n_cols = df.shape[1]
 
-        # core identifiers (adapt names if needed)
+        # core identifiers
         cc_col = "country_code"
         year_col = "year"
 
@@ -92,7 +92,7 @@ def main() -> None:
         summary.to_csv(out_path.with_suffix(".csv"), index=False)
         miss_top10.to_frame("missing_%").to_csv(out_path.parent / (out_path.stem + "_missing_top10.csv"))
 
-        # console print (so it appears when you run main)
+        # console print
         print("\n --- Merged Panel Overview (descriptive statistics)---")
         print(summary.to_string(index=False))
         print("\nTop 10 missingness (%):")
